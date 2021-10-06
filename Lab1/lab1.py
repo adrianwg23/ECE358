@@ -4,6 +4,9 @@ import math
 import matplotlib.pyplot as plt
 import numpy
 
+from collections import deque
+
+
 LAMBDA = 75
 
 def exponential_random_variable_question1():
@@ -45,23 +48,76 @@ def compute_service_time(L, C):
     return L/C
 
 
-class EventQueue:
-    def __init__(self) -> None:
-        self.queue = []
+def plot_graphs(En, Pidles):
+    rho = [.25,.35,.45,.55,.65,.75,.85,.95]
+    # Plot En vs rho
+    plt.plot(rho, En)
+    plt.ylabel('Average number in system (E[N])')
+    plt.xlabel('Traffic intensity (rho)')
+    plt.show()
 
-    def create_queue(self, rho, L, C, simulation_time):
+    # Plot Pidles vs rho
+    plt.plot(rho, Pidles)
+    plt.ylabel('Pidle')
+    plt.xlabel('Traffic intensity (rho)')
+    plt.show()
+
+
+class EventQueue:
+    def __init__(self, rho, L, C, simulation_time) -> None:
+        self.rho = rho
+        self.L = L
+        self.C = C
+        self.simulation_time = simulation_time
+        self.Na = 0
+        self.Nd = 0
+        self.No = 0
+
+        self.queue = deque()
+        self.num_packets_in_buffer = []
+        self.idle_time = 0
+        self.Pidle = 0
+        self.Ploss = 0
+        self.average_num_of_packets = 0
+
+    def run_simulation(self):
+        last_departure_time = 0
+        last_oberserver_time = 0
+        idle_in_progress = False
+        while self.queue:
+            event, current_time = self.queue.popleft()
+            if event != "observer" and idle_in_progress:
+                self.idle_time += (last_oberserver_time-last_departure_time)
+                idle_in_progress = False
+            if event == "arrival":
+                self.Na -= 1
+            elif event == "departure":
+                self.Nd -= 1
+                last_departure_time = current_time
+            else:
+                self.No -= 1
+                num_of_packets_in_buffer = self.Nd - self.Na
+                self.num_packets_in_buffer.append(num_of_packets_in_buffer)
+                if num_of_packets_in_buffer == 0:
+                    last_oberserver_time = current_time
+                    idle_in_progress = True
+
+        self.average_num_of_packets = sum(self.num_packets_in_buffer) / len(self.num_packets_in_buffer)
+        self.Pidle = self.idle_time / self.simulation_time
+
+    def create_queue(self):
         arrivals = []
         departures = []
         observers = []
 
         current_time = 0
-        while current_time < simulation_time:
-            arrival_rate = compute_arrival_rate(rho, L, C)
+        while current_time < self.simulation_time:
+            arrival_rate = compute_arrival_rate(self.rho, self.L, self.C)
             arrival_time = exponential_random_variable(arrival_rate) + current_time
             arrivals.append(('arrival', arrival_time))
             
-            packet_length = exponential_random_variable(1/L)
-            service_time = compute_service_time(packet_length, C)
+            packet_length = exponential_random_variable(1/self.L)
+            service_time = compute_service_time(packet_length, self.C)
 
             if len(departures) == 0 or departures[-1][1] < arrival_time:
                 departure_time = arrival_time + service_time
@@ -69,25 +125,32 @@ class EventQueue:
                 departure_time = departures[-1][1] + service_time
 
             departures.append(('departure', departure_time))
-            
+
             current_time = arrival_time
 
         current_time = 0
-        while current_time < simulation_time:
+        while current_time < self.simulation_time:
             observer_time = exponential_random_variable(5*arrival_rate) + current_time
             observers.append(('observer', observer_time))
 
             current_time = observer_time
 
-        self.queue = arrivals + departures + observers
-        self.queue.sort(key=lambda x: x[1])
-
-        print(len(arrivals))
-        print(len(departures))
-        print(len(observers))
-
+        self.Na = len(arrivals)
+        self.Nd = len(departures)
+        self.No = len(observers)
+        all_events = arrivals + departures + observers
+        all_events.sort(key=lambda x: x[1])
+        self.queue = deque(all_events)
 
 if __name__ == "__main__":
-    solution = EventQueue()
-    solution.create_queue(0.25, 2000, 1000000, 10)
-    
+    En = []
+    Pidles = [] 
+    for i in range(25, 96, 10):
+        Queue = EventQueue(i/100, 2000, 1000000, 1000)
+        Queue.create_queue()
+        Queue.run_simulation()
+        En.append(Queue.average_num_of_packets)
+        Pidles.append(Queue.Pidle)
+    print(En)
+    print(Pidles)
+    plot_graphs(En, Pidles)
