@@ -48,22 +48,52 @@ def compute_service_time(L, C):
     return L/C
 
 
-def plot_graphs(En, Pidles):
-    rho = [.25,.35,.45,.55,.65,.75,.85,.95]
+def question3_plot_graphs(rhos, En, Pidle):
+    plt.figure(1)
     # Plot En vs rho
-    plt.plot(rho, En)
+    plt.plot(rhos, En)
+    plt.title("En vs. rho")
     plt.ylabel('Average number in system (E[N])')
     plt.xlabel('Traffic intensity (rho)')
     plt.show()
 
-    # Plot Pidles vs rho
-    plt.plot(rho, Pidles)
+    plt.figure(2)
+    # Plot Pidle vs rho
+    plt.plot(rhos, Pidle)
+    plt.title("Pidle vs. rho")
     plt.ylabel('Pidle')
     plt.xlabel('Traffic intensity (rho)')
     plt.show()
 
 
-class EventQueue:
+def question6_plot_graphs(rhos, Ens, Plosses):
+    K_values = [10, 25, 50]
+    i = 0
+    plt.figure(3)
+    for En in Ens:
+        # Plot En vs rho
+        plt.plot(rhos, En, label="K={}".format(K_values[i]))
+        plt.title("En vs. rho for each K")
+        plt.legend(loc="upper left")
+        plt.ylabel('Average number in system (E[N])')
+        plt.xlabel('Traffic intensity (rho)')
+        i += 1
+    plt.show()
+
+    i = 0
+    plt.figure(4)
+    for Ploss in Plosses:
+        # Plot Ploss vs rho
+        plt.plot(rhos, Ploss, label="K={}".format(K_values[i]))
+        plt.title("Ploss vs. rho for each K")
+        plt.legend(loc="upper left")
+        plt.ylabel('Ploss')
+        plt.xlabel('Traffic intensity (rho)')
+        i += 1
+    plt.show()
+
+
+class InfiniteEventQueue:
     def __init__(self, rho, L, C, simulation_time) -> None:
         self.rho = rho
         self.L = L
@@ -142,15 +172,128 @@ class EventQueue:
         all_events.sort(key=lambda x: x[1])
         self.queue = deque(all_events)
 
+
+class FiniteEventQueue:
+    def __init__(self, rho, L, C, simulation_time, K) -> None:
+        self.rho = rho
+        self.L = L
+        self.C = C
+        self.simulation_time = simulation_time
+        self.K = K
+        self.Na = 0
+        self.No = 0
+        self.num_of_packet_loss = 0
+
+        self.queue = deque()
+        self.buffer = deque()
+        self.num_packets_in_buffer = []
+        self.idle_time = 0
+        self.Pidle = 0
+        self.Ploss = 0
+        self.average_num_of_packets = 0
+
+    def run_simulation(self):
+        last_departure_time = 0
+        last_oberserver_time = 0
+        idle_in_progress = False
+        while self.queue:
+            event, current_time = self.queue.popleft()
+            while self.buffer and current_time > self.buffer[0]:
+                last_departure_time = self.buffer.popleft()
+            if event == "arrival":
+                if idle_in_progress:
+                    self.idle_time += (last_oberserver_time-last_departure_time)
+                    idle_in_progress = False
+                if len(self.buffer) >= self.K:
+                    self.num_of_packet_loss += 1
+                else:
+                    # Generate departure event
+                    packet_length = exponential_random_variable(1/self.L)
+                    service_time = compute_service_time(packet_length, self.C)
+                    if len(self.buffer) == 0:
+                        corresponding_departure_time = current_time + service_time
+                    else:
+                        corresponding_departure_time = self.buffer[-1] + service_time
+                    self.buffer.append(corresponding_departure_time)
+            else:
+                self.num_packets_in_buffer.append(len(self.buffer))
+                if not self.buffer:
+                    last_oberserver_time = current_time
+                    idle_in_progress = True
+
+        self.average_num_of_packets = sum(self.num_packets_in_buffer) / len(self.num_packets_in_buffer)
+        self.Pidle = self.idle_time / self.simulation_time
+        self.Ploss = self.num_of_packet_loss / self.Na
+
+    def create_queue(self):
+        arrivals = []
+        observers = []
+
+        current_time = 0
+        while current_time < self.simulation_time:
+            arrival_rate = compute_arrival_rate(self.rho, self.L, self.C)
+            arrival_time = exponential_random_variable(arrival_rate) + current_time
+            arrivals.append(('arrival', arrival_time))
+
+            current_time = arrival_time
+
+        current_time = 0
+        while current_time < self.simulation_time:
+            observer_time = exponential_random_variable(5*arrival_rate) + current_time
+            observers.append(('observer', observer_time))
+
+            current_time = observer_time
+
+        self.Na = len(arrivals)
+        self.No = len(observers)
+        all_events = arrivals + observers
+        all_events.sort(key=lambda x: x[1])
+        self.queue = deque(all_events)
+
+
 if __name__ == "__main__":
-    En = []
-    Pidles = [] 
-    for i in range(25, 96, 10):
-        Queue = EventQueue(i/100, 2000, 1000000, 1000)
+    # Question 3
+    print("Simulating Question 3...")
+    question3_En = []
+    question3_Pidles = []
+    question3_rhos = [.25, .35, .45, .55, .65, .75, .85, .95]
+    for rho in question3_rhos:
+        Queue = InfiniteEventQueue(rho, 2000, 1000000, 1000)
         Queue.create_queue()
         Queue.run_simulation()
-        En.append(Queue.average_num_of_packets)
-        Pidles.append(Queue.Pidle)
-    print(En)
-    print(Pidles)
-    plot_graphs(En, Pidles)
+        question3_En.append(Queue.average_num_of_packets)
+        question3_Pidles.append(Queue.Pidle)
+        print("Infinite Queue - Finished simulating rho={}".format(rho))
+    
+    # Question4
+    print("Simulating Question 4...")
+    question4_En = []
+    question4_Pidles = []
+    Queue = InfiniteEventQueue(1.2, 2000, 1000000, 1000)
+    Queue.create_queue()
+    Queue.run_simulation()
+    print("Question 4: En={} for rho=1.2".format(Queue.average_num_of_packets))
+    print("Question 4: Pidle ={} for rho=1.2".format(Queue.Pidle))
+
+    # Question6
+    print("Simulating Question 6...")
+    Ks = [10, 25, 50]
+    question6_rhos = [.5, .6, .7, .8, .9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]
+    question6_En = []
+    question6_Plosses = []
+    for K in Ks:
+        En = []
+        Plosses = []
+        for rho in question6_rhos:
+            Queue = FiniteEventQueue(rho, 2000, 1000000, 1000, K)
+            Queue.create_queue()
+            Queue.run_simulation()
+            En.append(Queue.average_num_of_packets)
+            Plosses.append(Queue.Ploss)
+            print("Finite Queue - Finished simulating rho={}".format(rho))
+        question6_En.append(En)
+        question6_Plosses.append(Plosses)
+    
+    # Plot all graphs
+    question3_plot_graphs(question3_rhos, question3_En, question3_Pidles)
+    question6_plot_graphs(question6_rhos, question6_En, question6_Plosses)
