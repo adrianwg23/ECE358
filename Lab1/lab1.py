@@ -7,9 +7,8 @@ import numpy
 from collections import deque
 
 
-LAMBDA = 75
-
 def exponential_random_variable_question1():
+    LAMBDA = 75
     random.seed(datetime.datetime.now())
     trials = numpy.array([])
     for _ in range(1000):
