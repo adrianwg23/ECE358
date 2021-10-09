@@ -8,11 +8,16 @@ from collections import deque
 
 
 def exponential_random_variable_question1():
+<<<<<<< HEAD
     """
     Generates 1000 expontential random variables and computes its expected value and variance for Question 1.
     """
     LAMBDA = 75
     random.seed(float(datetime.datetime.now().timestamp()))
+=======
+    LAMBDA = 75
+    random.seed(datetime.datetime.now())
+>>>>>>> 552ba84be593764780b6c3e94582d895b06e10a5
     trials = numpy.array([])
     for _ in range(1000):
         U = random.random()
