@@ -7,10 +7,12 @@ import numpy
 from collections import deque
 
 
-LAMBDA = 75
-
 def exponential_random_variable_question1():
-    random.seed(datetime.datetime.now())
+    """
+    Generates 1000 expontential random variables and computes its expected value and variance for Question 1.
+    """
+    LAMBDA = 75
+    random.seed(float(datetime.datetime.now().timestamp()))
     trials = numpy.array([])
     for _ in range(1000):
         U = random.random()
@@ -29,7 +31,10 @@ def exponential_random_variable_question1():
 
 
 def exponential_random_variable(lambda_value):
-    random.seed(datetime.datetime.now())
+    """
+    Generates a exponential random variable with lambda input
+    """
+    random.seed(float(datetime.datetime.now().timestamp()))
     U = random.random()
     x = -(1/lambda_value)*math.log(1-U)
     
@@ -94,6 +99,8 @@ def question6_plot_graphs(rhos, Ens, Plosses):
 
 
 class InfiniteEventQueue:
+    """A class used to represent a M/M/1 network queue"""
+
     def __init__(self, rho, L, C, simulation_time) -> None:
         self.rho = rho
         self.L = L
@@ -111,6 +118,10 @@ class InfiniteEventQueue:
         self.average_num_of_packets = 0
 
     def run_simulation(self):
+        """
+        Processes all Arrival, Departure, and Observer events from queue and computes the average 
+        number of packets and idle time for the entire simulation time.
+        """
         last_departure_time = 0
         last_oberserver_time = 0
         idle_in_progress = False
@@ -136,6 +147,10 @@ class InfiniteEventQueue:
         self.Pidle = self.idle_time / self.simulation_time
 
     def create_queue(self):
+        """
+        Creates Arrival, Departure, and Observer events based on rho, L, and C values and appends them 
+        to the M/M/1 queue.
+        """
         arrivals = []
         departures = []
         observers = []
@@ -174,6 +189,8 @@ class InfiniteEventQueue:
 
 
 class FiniteEventQueue:
+    """A class used to represent a M/M/1/K network queue"""
+
     def __init__(self, rho, L, C, simulation_time, K) -> None:
         self.rho = rho
         self.L = L
@@ -193,6 +210,11 @@ class FiniteEventQueue:
         self.average_num_of_packets = 0
 
     def run_simulation(self):
+        """
+        Process all Arrival and Observer events in the queue. Departure events are generated on the fly when a
+        Arrival events gets added to the buffer. A counter for packet loss is tracked when each packet attempts
+        to enter the buffer. The average number of packets, Pidle, and Ploss are computed at the end.
+        """
         last_departure_time = 0
         last_oberserver_time = 0
         idle_in_progress = False
@@ -226,6 +248,10 @@ class FiniteEventQueue:
         self.Ploss = self.num_of_packet_loss / self.Na
 
     def create_queue(self):
+        """
+        Creates a queue of arrival and observer events. These are appended into the queue in 
+        chronological order.
+        """
         arrivals = []
         observers = []
 
@@ -252,6 +278,11 @@ class FiniteEventQueue:
 
 
 if __name__ == "__main__":
+    # Question 1
+    print("Simulating Question 1...")
+    exponential_random_variable_question1()
+    print("")
+
     # Question 3
     print("Simulating Question 3...")
     question3_En = []
@@ -264,6 +295,7 @@ if __name__ == "__main__":
         question3_En.append(Queue.average_num_of_packets)
         question3_Pidles.append(Queue.Pidle)
         print("Infinite Queue - Finished simulating rho={}".format(rho))
+    print("")
     
     # Question4
     print("Simulating Question 4...")
@@ -274,6 +306,7 @@ if __name__ == "__main__":
     Queue.run_simulation()
     print("Question 4: En={} for rho=1.2".format(Queue.average_num_of_packets))
     print("Question 4: Pidle ={} for rho=1.2".format(Queue.Pidle))
+    print("")
 
     # Question6
     print("Simulating Question 6...")
@@ -293,7 +326,9 @@ if __name__ == "__main__":
             print("Finite Queue - Finished simulating rho={}".format(rho))
         question6_En.append(En)
         question6_Plosses.append(Plosses)
+    print("")
     
     # Plot all graphs
     question3_plot_graphs(question3_rhos, question3_En, question3_Pidles)
     question6_plot_graphs(question6_rhos, question6_En, question6_Plosses)
+    print("Done.")
