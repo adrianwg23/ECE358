@@ -95,11 +95,13 @@ class PersisentCSMACD:
         return random.randint(0, (2**node.backoff_counter) - 1) * Tp
 
     def process_event(self, sender_index, sender_frame_time):
-        collision_detected = False
-        max_distance = float('-inf')
+        collision_status = { "collision_detected": False, "max_distance": float('-inf') }
 
-        self.check_collision(sender_index, sender_frame_time, collision_detected, max_distance, "right")
-        self.check_collision(sender_index, sender_frame_time, collision_detected, max_distance, "left")
+        # check for collisions to the right of the sender
+        self.check_collision(sender_index, sender_frame_time, collision_status, "right")
+
+        # check for collisions to the left of the sender
+        self.check_collision(sender_index, sender_frame_time, collision_status, "left")
         
         # loop go right [node_index to end of  node array]
             # curr_time += propagation_delay*(index-node_index)
@@ -124,9 +126,10 @@ class PersisentCSMACD:
                 # bubble up the T(sender + Tprop*distance + Ttrans to all of events in the current node where that number is less than the event time
         pass
 
-    def check_collision(self, sender_index, sender_frame_time, collision_detected, max_distance, direction):
+    def check_collision(self, sender_index, sender_frame_time, collision_status, direction):
         curr_index = sender_index
         curr_index = self.get_next_index(curr_index, direction)
+        max_distance = collision_status["max_distance"]
 
         while True:
             curr_node = self.nodes[curr_index]
@@ -157,8 +160,8 @@ class PersisentCSMACD:
                         else:
                             break
                     
-                    collision_detected = True
-                    max_distance = max(max_distance, distance_to_sender)
+                    collision_status["collision_detected"] = True
+                    collision_status["max_distance"] = max(max_distance, distance_to_sender)
             
             curr_index = self.get_next_index(curr_index, direction)
 
