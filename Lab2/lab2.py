@@ -98,10 +98,10 @@ class PersisentCSMACD:
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
 
         # check for collisions to the right of the sender
-        self.check_collision(sender_index, sender_frame_time, collision_status, "right")
+        self.check_collision(sender_index, sender_frame_time, collision_status, direction="right")
 
         # check for collisions to the left of the sender
-        self.check_collision(sender_index, sender_frame_time, collision_status, "left")
+        self.check_collision(sender_index, sender_frame_time, collision_status, direction="left")
         
         # loop go right [node_index to end of  node array]
             # curr_time += propagation_delay*(index-node_index)
@@ -173,9 +173,9 @@ class PersisentCSMACD:
 
     def get_next_index(curr_index, direction):
         if direction == "right":
-            curr_index += 1
+            return curr_index + 1
         elif direction == "left":
-            curr_index -= 1
+            return curr_index - 1
 
 
 class NonPersisentCSMACD:
