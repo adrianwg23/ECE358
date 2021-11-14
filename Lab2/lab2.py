@@ -25,45 +25,117 @@ def compute_propagation_delay(D, S):
 
 
 class Node:
-    def __init__(self, A):
-        self.queue = []
+    def __init__(self, A, T):
+        self.queue = deque()
         self.backoff_counter = 0
-        A = A # average packet arrival rate
+        self.max_backoff = 10
+        self.A = A # average packet arrival rate
+        self.T = T # simulation time
+        self.completed = False
 
     def create_queue(self):
-        # create list of arrival events using exponential_random_variable for each node 
-        pass
+        current_time = 0
+        # create events up to simulation time T
+        while True:
+            arrival_time = exponential_random_variable(self.A) + current_time
+            if arrival_time > self.T:
+                break
+
+            self.queue.append(arrival_time)
+            current_time = arrival_time
+
+    def should_drop_packet(self):
+        return self.backoff_counter > self.max_backoff
+
+    def drop_packet(self):
+        self.queue.popleft()
+        self.backoff_counter = 0
 
 
 class PersisentCSMACD:
-    def __init__(self, N, R, L, D, S, T):
+    def __init__(self, N, A, T):
         self.N = N # number of nodes
-        self.R = R # speed of the LAN
-        self.L = L # packet length
-        self.D = D # distance between adjacent nodes on bus
-        self.S = S # propagation speed
+        self.A = A # average packet arrival rate
         self.T = T # simulation time
+
+        # constants
+        self.R = 10**6 # speed of the LAN
+        self.L = 1500 # packet length
+        self.D = 10 # distance between adjacent nodes on bus
+        self.S = (2/3) * (3 * (10**8)) # propagation speed
+
+        self.dropped_packets = 0
+        self.completed_nodes = 0
+        self.total_packets = 0
         self.nodes = []
 
     def create_nodes(self):
-        # create N nodes
-        # for each node, call its method create_queue
-        pass
+        for _ in range(self.N):
+            node = Node(self.A, self.T)
+            node.create_queue()
+            self.total_packets += len(node.queue)
+            self.nodes.append(node)
 
     def run_simulation(self):
+        self.create_nodes()
         # check which arrival time is the smallest among the nodes and get node index
-        # process event at node index
-        pass
+        while self.completed_nodes < self.N:
+            min_node_index = 0
+            min_timestamp = float('inf')
+            for i, node in enumerate(self.nodes):
+                if node.queue and node.queue[0] < min_timestamp:
+                    min_timestamp = node.queue[0]
+                    min_node_index = i
+
+            # process event at node index
+            self.process_event(min_node_index, min_timestamp)
     
     def calculate_exp_backoff_time(self, node):
-        # do bit-time calculate (should be 512 microseconds)
-        # returns random int number between (0, 2^i-1) * 512 bit-time
-        pass
+        Tp = 512 / self.R
+        return random.randint(0, (2**node.backoff_counter) - 1) * Tp
 
-    def process_event(self, node_index, curr_time):
-        # var: collision_detected = False
-        # var: curr_time = curr_time
-        # var: max distance of collision
+    def process_event(self, sender_index, sender_frame_time):
+        collision_detected = False
+        max_distance = float('-inf')
+        curr_index = sender_index + 1
+
+        while curr_index < self.N:
+            curr_node = self.nodes[curr_index]
+            head_frame_time = curr_node.queue[0]
+            distance_to_sender = curr_index - sender_index
+
+            # if the current node has no more events to offer in its queue, go next
+            if not curr_node.queue:
+                curr_index += 1
+                continue
+
+            received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
+
+            # collision occurs
+            if head_frame_time <= received_time:
+                curr_node.backoff_counter += 1
+
+                if curr_node.should_drop_packet():
+                    curr_node.drop_packet()
+                    self.dropped_packets += 1
+                else:
+                    new_receiver_frame_time = received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node)
+                    for i in range(len(curr_node.queue)):
+                        frame_time = curr_node.queue[i]
+                        # bubble the new receiver_frame_time to all events that have frame_time less than this time
+                        if frame_time < new_receiver_frame_time:
+                            curr_node.queue[i] = new_receiver_frame_time
+                        else:
+                            break
+                    
+                    collision_detected = True
+                    max_distance = max(max_distance, distance_to_sender)
+
+            curr_index += 1
+
+        curr_index = sender_index - 1
+
+
         
         # loop go right [node_index to end of  node array]
             # curr_time += propagation_delay*(index-node_index)
@@ -93,4 +165,8 @@ class NonPersisentCSMACD:
     pass 
 
 if __name__ == "__main__":
-    print("Done.")
+    persisentCSMACD = PersisentCSMACD(5, 7, 1000)
+    persisentCSMACD.create_nodes()
+    
+    print(persisentCSMACD.nodes[0].queue)
+    
