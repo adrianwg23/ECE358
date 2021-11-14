@@ -23,6 +23,13 @@ def compute_transmission_delay(L, R):
 def compute_propagation_delay(D, S):
     return D/S
 
+def plot_graphs(Ns, Es):
+    plt.figure(1)
+    plt.plot(Ns, Es)
+    plt.title("Efficiency vs. Nodes")
+    plt.ylabel('Efficiency of system (successful packets/transmitted packets)')
+    plt.xlabel('Number of nodes')
+    plt.show()
 
 class Node:
     def __init__(self, A, T):
@@ -96,8 +103,6 @@ class PersisentCSMACD:
     def process_event(self, sender_index, sender_frame_time):
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
         self.total_transmission += 1
-        if not self.nodes[sender_index].queue:
-            print(sender_index)
 
         # check for collisions to the right of the sender
         self.check_collision(sender_index+1, sender_frame_time, collision_status, direction="right")
@@ -173,12 +178,12 @@ class PersisentCSMACD:
                         else:
                             break
                     
-                    collision_status["collision_detected"] = True
-                    collision_status["max_distance"] = max(max_distance, distance_to_sender)
+                collision_status["collision_detected"] = True
+                collision_status["max_distance"] = max(max_distance, distance_to_sender)
 
             # collision on the medium, but current node has no collision and senses medium is busy
-            if collision_status["collision_detected"] and head_frame_time > received_time and head_frame_time < received_time + compute_transmission_delay(self.L, self.R):
-                transmission_time = received_time + compute_transmission_delay(self.L, self.R)
+            transmission_time = received_time + compute_transmission_delay(self.L, self.R)
+            if head_frame_time > received_time and head_frame_time < transmission_time:
                 for i in range(len(curr_node.queue)):
                     frame_time = curr_node.queue[i]
                     # bubble the new receiver_frame_time to all events that have frame_time less than this time
@@ -195,26 +200,24 @@ class PersisentCSMACD:
             return curr_index + 1
         elif direction == "left":
             return curr_index - 1
-    
-    def plot_graphs(self):
-        pass
 
 
 class NonPersisentCSMACD:
     pass 
 
 if __name__ == "__main__":
-    persisentCSMACD = PersisentCSMACD(100, 5, 1000)
-    persisentCSMACD.create_nodes()
-    for node in persisentCSMACD.nodes:
-        print(len(node.queue))
-    persisentCSMACD.run_simulation()
-    for node in persisentCSMACD.nodes:
-        print(node.queue)
-    print(persisentCSMACD.successful_packet_transmission)
-    print(persisentCSMACD.total_transmission)
-    print(persisentCSMACD.completed_nodes)
-    print(persisentCSMACD.dropped_packets)
-
-    print(">>>>>>")
-    print(persisentCSMACD.successful_packet_transmission/persisentCSMACD.total_transmission)
+    Ns = [20, 40, 60, 80, 100]
+    As = [7, 10, 20]
+    efficiency = []
+    for N in Ns:
+        persisentCSMACD = PersisentCSMACD(N, 5, 1000)
+        persisentCSMACD.create_nodes()
+        persisentCSMACD.run_simulation()
+        efficiency.append(persisentCSMACD.successful_packet_transmission/persisentCSMACD.total_transmission)
+    plot_graphs(Ns, efficiency)
+        # print(persisentCSMACD.successful_packet_transmission)
+        # print(persisentCSMACD.total_transmission)
+        # print(persisentCSMACD.completed_nodes)
+        # print(persisentCSMACD.dropped_packets)
+        # print(">>>>>>")
+        # print(persisentCSMACD.successful_packet_transmission/persisentCSMACD.total_transmission)
