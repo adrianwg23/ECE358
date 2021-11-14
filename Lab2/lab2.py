@@ -127,14 +127,13 @@ class PersisentCSMACD:
                 # Check if each node is busy, if so change their events to total transmission time
                 curr_node = self.nodes[i]
                 total_transmission_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*abs(i-sender_index) + compute_transmission_delay(self.L, self.R)
-                if curr_node.queue and total_transmission_time > curr_node.queue[0]:
-                    for i in range(len(curr_node.queue)):
-                        frame_time = curr_node.queue[i]
-                        # bubble the new receiver_frame_time to all events that have frame_time less than this time
-                        if frame_time < total_transmission_time:
-                            curr_node.queue[i] = total_transmission_time
-                        else:
-                            break
+                for i in range(len(curr_node.queue)):
+                    frame_time = curr_node.queue[i]
+                    # bubble the new receiver_frame_time to all events that have frame_time less than this time
+                    if frame_time < total_transmission_time:
+                        curr_node.queue[i] = total_transmission_time
+                    else:
+                        break
             self.successful_packet_transmission += 1
         if not sender_node.queue:
             self.completed_nodes += 1
@@ -176,6 +175,17 @@ class PersisentCSMACD:
                     
                     collision_status["collision_detected"] = True
                     collision_status["max_distance"] = max(max_distance, distance_to_sender)
+
+            # collision on the medium, but current node has no collision and senses medium is busy
+            if collision_status["collision_detected"] and head_frame_time > received_time and head_frame_time < received_time + compute_transmission_delay(self.L, self.R):
+                transmission_time = received_time + compute_transmission_delay(self.L, self.R)
+                for i in range(len(curr_node.queue)):
+                    frame_time = curr_node.queue[i]
+                    # bubble the new receiver_frame_time to all events that have frame_time less than this time
+                    if frame_time < transmission_time:
+                        curr_node.queue[i] = transmission_time
+                    else:
+                        break
 
             
             curr_index = self.get_next_index(curr_index, direction)
