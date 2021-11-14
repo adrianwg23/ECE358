@@ -97,45 +97,9 @@ class PersisentCSMACD:
     def process_event(self, sender_index, sender_frame_time):
         collision_detected = False
         max_distance = float('-inf')
-        curr_index = sender_index + 1
 
-        while curr_index < self.N:
-            curr_node = self.nodes[curr_index]
-            head_frame_time = curr_node.queue[0]
-            distance_to_sender = curr_index - sender_index
-
-            # if the current node has no more events to offer in its queue, go next
-            if not curr_node.queue:
-                curr_index += 1
-                continue
-
-            received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
-
-            # collision occurs
-            if head_frame_time <= received_time:
-                curr_node.backoff_counter += 1
-
-                if curr_node.should_drop_packet():
-                    curr_node.drop_packet()
-                    self.dropped_packets += 1
-                else:
-                    new_receiver_frame_time = received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node)
-                    for i in range(len(curr_node.queue)):
-                        frame_time = curr_node.queue[i]
-                        # bubble the new receiver_frame_time to all events that have frame_time less than this time
-                        if frame_time < new_receiver_frame_time:
-                            curr_node.queue[i] = new_receiver_frame_time
-                        else:
-                            break
-                    
-                    collision_detected = True
-                    max_distance = max(max_distance, distance_to_sender)
-
-            curr_index += 1
-
-        curr_index = sender_index - 1
-
-
+        self.check_collision(sender_index, sender_frame_time, collision_detected, max_distance, "right")
+        self.check_collision(sender_index, sender_frame_time, collision_detected, max_distance, "left")
         
         # loop go right [node_index to end of  node array]
             # curr_time += propagation_delay*(index-node_index)
@@ -159,6 +123,56 @@ class PersisentCSMACD:
             # if busy which implies T(curr_index) < T(sender + Tprop*distance + Ttrans
                 # bubble up the T(sender + Tprop*distance + Ttrans to all of events in the current node where that number is less than the event time
         pass
+
+    def check_collision(self, sender_index, sender_frame_time, collision_detected, max_distance, direction):
+        curr_index = sender_index
+        curr_index = self.get_next_index(curr_index, direction)
+
+        while True:
+            curr_node = self.nodes[curr_index]
+            head_frame_time = curr_node.queue[0]
+            distance_to_sender = abs(curr_index - sender_index)
+
+            # if the current node has no more events to offer in its queue, go next
+            if not curr_node.queue:
+                curr_index = self.get_next_index(curr_index, direction)
+                continue
+
+            received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
+
+            # collision occurs
+            if head_frame_time <= received_time:
+                curr_node.backoff_counter += 1
+
+                if curr_node.should_drop_packet():
+                    curr_node.drop_packet()
+                    self.dropped_packets += 1
+                else:
+                    new_receiver_frame_time = received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node)
+                    for i in range(len(curr_node.queue)):
+                        frame_time = curr_node.queue[i]
+                        # bubble the new receiver_frame_time to all events that have frame_time less than this time
+                        if frame_time < new_receiver_frame_time:
+                            curr_node.queue[i] = new_receiver_frame_time
+                        else:
+                            break
+                    
+                    collision_detected = True
+                    max_distance = max(max_distance, distance_to_sender)
+            
+            curr_index = self.get_next_index(curr_index, direction)
+
+            if direction == "right" and curr_index >= self.N:
+                break
+            elif direction == "left" and curr_index < 0:
+                break
+
+
+    def get_next_index(curr_index, direction):
+        if direction == "right":
+            curr_index += 1
+        elif direction == "left":
+            curr_index -= 1
 
 
 class NonPersisentCSMACD:
