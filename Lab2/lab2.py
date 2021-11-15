@@ -53,12 +53,12 @@ class Node:
             current_time = arrival_time
 
 
-class CSMACD:
-    def __init__(self, N, A, T, P):
+class Lan:
+    def __init__(self, N, A, T, CSMACD_type):
         self.N = N # number of nodes
         self.A = A # average packet arrival rate
         self.T = T # simulation time
-        self.persistent = P
+        self.CSMACD_type = CSMACD_type
 
         # constants
         self.R = 10**6 # speed of the LAN
@@ -119,7 +119,7 @@ class CSMACD:
         if collision_status['collision_detected']:
             sender_node.backoff_collision_counter += 1
             if sender_node.backoff_collision_counter > sender_node.max_backoff:
-                # drop packet
+                # drop packet due to collision
                 sender_node.queue.popleft()
                 sender_node.backoff_collision_counter = 0
                 self.dropped_packets += 1
@@ -128,7 +128,7 @@ class CSMACD:
                 self.bubble_new_frame_time(sender_node, wait_time)
         else:
             sender_node.queue.popleft()
-            if not self.persistent:
+            if self.CSMACD_type == CSMACDType.NON_PERSISTENT:
                 sender_node.backoff_busy_counter = 0
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
@@ -158,7 +158,7 @@ class CSMACD:
                 curr_node.backoff_collision_counter += 1
 
                 if curr_node.backoff_collision_counter > curr_node.max_backoff:
-                    # drop packet
+                    # drop packet due to collision
                     curr_node.queue.popleft()
                     curr_node.backoff_collision_counter = 0
                     self.dropped_packets += 1
@@ -174,7 +174,7 @@ class CSMACD:
             # no collision but node senses medium as busy
             if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + compute_transmission_delay(self.L, self.R):
                 transmission_time = first_bit_received_time + compute_transmission_delay(self.L, self.R)
-                if self.persistent:
+                if self.CSMACD_type == CSMACDType.PERSISTENT:
                     self.bubble_new_frame_time(curr_node, transmission_time)
                 else:
                     curr_node.backoff_busy_counter += 1
@@ -186,7 +186,7 @@ class CSMACD:
                         if curr_node.backoff_busy_counter > curr_node.max_backoff:
                             break
                     if curr_node.backoff_busy_counter > curr_node.max_backoff:
-                        # drop packet
+                        # drop packet due to busy backoff counter excteed
                         curr_node.queue.popleft()
                         curr_node.backoff_busy_counter = 0
                         self.dropped_packets_due_to_busy_medium += 1
@@ -203,12 +203,16 @@ class CSMACD:
             return curr_index - 1
 
 
+class CSMACDType:
+    PERSISTENT, NON_PERSISTENT = range(2)
+
+
 if __name__ == "__main__":
     Ns = [20, 40, 60, 80, 100]
     As = [7, 10, 20]
     efficiency = []
     for N in Ns:
-        persisentCSMACD = CSMACD(N, 5, 1000, True)
+        persisentCSMACD = Lan(N, 5, 1000, CSMACDType.PERSISTENT)
         persisentCSMACD.create_nodes()
         persisentCSMACD.run_simulation()
         efficiency.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
