@@ -34,7 +34,8 @@ def plot_graphs(Ns, Es):
 class Node:
     def __init__(self, A, T):
         self.queue = deque()
-        self.backoff_counter = 0
+        self.backoff_collision_counter = 0
+        self.backoff_busy_counter = 0
         self.max_backoff = 10
         self.A = A # average packet arrival rate
         self.T = T # simulation time
@@ -51,19 +52,13 @@ class Node:
             self.queue.append(arrival_time)
             current_time = arrival_time
 
-    def should_drop_packet(self):
-        return self.backoff_counter > self.max_backoff
 
-    def drop_packet(self):
-        self.queue.popleft()
-        self.backoff_counter = 0
-
-
-class PersisentCSMACD:
-    def __init__(self, N, A, T):
+class CSMACD:
+    def __init__(self, N, A, T, P):
         self.N = N # number of nodes
         self.A = A # average packet arrival rate
         self.T = T # simulation time
+        self.persistent = P
 
         # constants
         self.R = 10**6 # speed of the LAN
@@ -72,11 +67,12 @@ class PersisentCSMACD:
         self.S = (2/3) * (3 * (10**8)) # propagation speed
 
         self.dropped_packets = 0
+        self.dropped_packets_due_to_busy_medium = 0
         self.completed_nodes = 0
         self.total_transmissions = 0
         self.successful_packet_transmissions = 0
         self.nodes = []
-
+    
     def create_nodes(self):
         for _ in range(self.N):
             node = Node(self.A, self.T)
@@ -96,9 +92,9 @@ class PersisentCSMACD:
             # process event at node index
             self.process_sender_node(min_node_index, min_timestamp)
     
-    def calculate_exp_backoff_time(self, node):
+    def calculate_exp_backoff_time(self, backoff_counter):
         Tp = 512 / self.R
-        return random.randint(0, (2**node.backoff_counter) - 1) * Tp
+        return random.randint(0, (2**backoff_counter) - 1) * Tp
 
     def bubble_new_frame_time(self, node, new_frame_time):
         for i in range(len(node.queue)):
@@ -121,15 +117,19 @@ class PersisentCSMACD:
         sender_node = self.nodes[sender_index]
 
         if collision_status['collision_detected']:
-            sender_node.backoff_counter += 1
-            if sender_node.should_drop_packet():
-                sender_node.drop_packet()
+            sender_node.backoff_collision_counter += 1
+            if sender_node.backoff_collision_counter > sender_node.max_backoff:
+                # drop packet
+                sender_node.queue.popleft()
+                sender_node.backoff_collision_counter = 0
                 self.dropped_packets += 1
             else:
-                wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node)
+                wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
                 self.bubble_new_frame_time(sender_node, wait_time)
         else:
             sender_node.queue.popleft()
+            if not self.persistent:
+                sender_node.backoff_busy_counter = 0
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
             self.bubble_new_frame_time(sender_node, transmission_time)
@@ -155,15 +155,17 @@ class PersisentCSMACD:
             # collision occurs
             if head_frame_time <= first_bit_received_time:
                 self.total_transmissions += 1
-                curr_node.backoff_counter += 1
+                curr_node.backoff_collision_counter += 1
 
-                if curr_node.should_drop_packet():
-                    curr_node.drop_packet()
+                if curr_node.backoff_collision_counter > curr_node.max_backoff:
+                    # drop packet
+                    curr_node.queue.popleft()
+                    curr_node.backoff_collision_counter = 0
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
                 else:
-                    wait_time = first_bit_received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node)
+                    wait_time = first_bit_received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node.backoff_collision_counter)
                     self.bubble_new_frame_time(curr_node, wait_time)
                     
                 collision_status["collision_detected"] = True
@@ -172,8 +174,26 @@ class PersisentCSMACD:
             # no collision but node senses medium as busy
             if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + compute_transmission_delay(self.L, self.R):
                 transmission_time = first_bit_received_time + compute_transmission_delay(self.L, self.R)
-                self.bubble_new_frame_time(curr_node, transmission_time)
-            
+                if self.persistent:
+                    self.bubble_new_frame_time(curr_node, transmission_time)
+                else:
+                    curr_node.backoff_busy_counter += 1
+                    wait_time = head_frame_time+self.calculate_exp_backoff_time(curr_node.backoff_busy_counter)
+                    # backoff until new wait time is greater than transmission time of last bit of receiving frame
+                    while wait_time < transmission_time:
+                        curr_node.backoff_busy_counter += 1
+                        wait_time = head_frame_time+self.calculate_exp_backoff_time(curr_node.backoff_busy_counter)
+                        if curr_node.backoff_busy_counter > curr_node.max_backoff:
+                            break
+                    if curr_node.backoff_busy_counter > curr_node.max_backoff:
+                        # drop packet
+                        curr_node.queue.popleft()
+                        curr_node.backoff_busy_counter = 0
+                        self.dropped_packets_due_to_busy_medium += 1
+                        if not curr_node.queue:
+                            self.completed_nodes += 1
+                    else:
+                        self.bubble_new_frame_time(curr_node, head_frame_time+self.calculate_exp_backoff_time(curr_node.backoff_busy_counter))          
             curr_index = self.get_next_index(curr_index, direction)
 
     def get_next_index(self, curr_index, direction):
@@ -183,15 +203,12 @@ class PersisentCSMACD:
             return curr_index - 1
 
 
-class NonPersisentCSMACD:
-    pass 
-
 if __name__ == "__main__":
     Ns = [20, 40, 60, 80, 100]
     As = [7, 10, 20]
     efficiency = []
     for N in Ns:
-        persisentCSMACD = PersisentCSMACD(N, 12, 1000)
+        persisentCSMACD = CSMACD(N, 5, 1000, True)
         persisentCSMACD.create_nodes()
         persisentCSMACD.run_simulation()
         efficiency.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
