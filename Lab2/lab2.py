@@ -73,8 +73,8 @@ class PersisentCSMACD:
 
         self.dropped_packets = 0
         self.completed_nodes = 0
-        self.total_transmission = 0
-        self.successful_packet_transmission = 0
+        self.total_transmissions = 0
+        self.successful_packet_transmissions = 0
         self.nodes = []
 
     def create_nodes(self):
@@ -94,21 +94,29 @@ class PersisentCSMACD:
                     min_node_index = i
 
             # process event at node index
-            self.process_event(min_node_index, min_timestamp)
+            self.process_sender_node(min_node_index, min_timestamp)
     
     def calculate_exp_backoff_time(self, node):
         Tp = 512 / self.R
         return random.randint(0, (2**node.backoff_counter) - 1) * Tp
 
-    def process_event(self, sender_index, sender_frame_time):
+    def bubble_new_frame_time(self, node, new_frame_time):
+        for i in range(len(node.queue)):
+            current_frame_time = node.queue[i]
+            if current_frame_time < new_frame_time:
+                node.queue[i] = new_frame_time
+            else:
+                break
+
+    def process_sender_node(self, sender_index, sender_frame_time):
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
-        self.total_transmission += 1
+        self.total_transmissions += 1
 
-        # check for collisions to the right of the sender
-        self.check_collision(sender_index+1, sender_frame_time, collision_status, direction="right")
+        # send packet to nodes right of the sender
+        self.process_neighbour_node(sender_index+1, sender_frame_time, collision_status, direction="right")
 
-        # check for collisions to the left of the sender
-        self.check_collision(sender_index-1, sender_frame_time, collision_status, direction="left")
+        # send packet to nodes left of the sender
+        self.process_neighbour_node(sender_index-1, sender_frame_time, collision_status, direction="left")
 
         sender_node = self.nodes[sender_index]
 
@@ -118,31 +126,18 @@ class PersisentCSMACD:
                 sender_node.drop_packet()
                 self.dropped_packets += 1
             else:
-                new_sender_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node)
-                for i in range(len(sender_node.queue)):
-                    frame_time = sender_node.queue[i]
-                    # bubble the new receiver_frame_time to all events that have frame_time less than this time
-                    if frame_time < new_sender_time:
-                        sender_node.queue[i] = new_sender_time
-                    else:
-                        break
+                wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node)
+                self.bubble_new_frame_time(sender_node, wait_time)
         else:
             sender_node.queue.popleft()
-            total_transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
-            for i in range(len(sender_node.queue)):
-                frame_time = sender_node.queue[i]
-                # bubble the new transmission to all events that have frame_time less than this time
-                if frame_time < total_transmission_time:
-                    sender_node.queue[i] = total_transmission_time
-                else:
-                    break
-                    
-            self.successful_packet_transmission += 1
+            self.successful_packet_transmissions += 1
+            transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
+            self.bubble_new_frame_time(sender_node, transmission_time)
             
         if not sender_node.queue:
             self.completed_nodes += 1
 
-    def check_collision(self, sender_index, sender_frame_time, collision_status, direction):
+    def process_neighbour_node(self, sender_index, sender_frame_time, collision_status, direction):
         curr_index = sender_index
         max_distance = collision_status["max_distance"]
 
@@ -155,11 +150,11 @@ class PersisentCSMACD:
             
             head_frame_time = curr_node.queue[0]
             distance_to_sender = abs(curr_index - sender_index)
-            received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
+            first_bit_received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
 
             # collision occurs
-            if head_frame_time <= received_time:
-                self.total_transmission += 1
+            if head_frame_time <= first_bit_received_time:
+                self.total_transmissions += 1
                 curr_node.backoff_counter += 1
 
                 if curr_node.should_drop_packet():
@@ -168,29 +163,16 @@ class PersisentCSMACD:
                     if not curr_node.queue:
                         self.completed_nodes += 1
                 else:
-                    new_receiver_frame_time = received_time + self.calculate_exp_backoff_time(curr_node)
-                    for i in range(len(curr_node.queue)):
-                        frame_time = curr_node.queue[i]
-                        # bubble the new receiver_frame_time to all events that have frame_time less than this time
-                        if frame_time < new_receiver_frame_time:
-                            curr_node.queue[i] = new_receiver_frame_time
-                        else:
-                            break
+                    wait_time = first_bit_received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node)
+                    self.bubble_new_frame_time(curr_node, wait_time)
                     
                 collision_status["collision_detected"] = True
                 collision_status["max_distance"] = max(max_distance, distance_to_sender)
 
-            # check if medium is busy
-            if head_frame_time > received_time and head_frame_time < received_time + compute_transmission_delay(self.L, self.R):
-                transmission_time = received_time + compute_transmission_delay(self.L, self.R)
-                for i in range(len(curr_node.queue)):
-                    frame_time = curr_node.queue[i]
-                    # bubble the new receiver_frame_time to all events that have frame_time less than this time
-                    if frame_time < transmission_time:
-                        curr_node.queue[i] = transmission_time
-                    else:
-                        break
-
+            # no collision but node senses medium as busy
+            if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + compute_transmission_delay(self.L, self.R):
+                transmission_time = first_bit_received_time + compute_transmission_delay(self.L, self.R)
+                self.bubble_new_frame_time(curr_node, transmission_time)
             
             curr_index = self.get_next_index(curr_index, direction)
 
@@ -209,14 +191,14 @@ if __name__ == "__main__":
     As = [7, 10, 20]
     efficiency = []
     for N in Ns:
-        persisentCSMACD = PersisentCSMACD(N, 5, 1000)
+        persisentCSMACD = PersisentCSMACD(N, 12, 1000)
         persisentCSMACD.create_nodes()
         persisentCSMACD.run_simulation()
-        efficiency.append(persisentCSMACD.successful_packet_transmission/persisentCSMACD.total_transmission)
+        efficiency.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
     plot_graphs(Ns, efficiency)
-        # print(persisentCSMACD.successful_packet_transmission)
-        # print(persisentCSMACD.total_transmission)
+        # print(persisentCSMACD.successful_packet_transmissions)
+        # print(persisentCSMACD.total_transmissions)
         # print(persisentCSMACD.completed_nodes)
         # print(persisentCSMACD.dropped_packets)
         # print(">>>>>>")
-        # print(persisentCSMACD.successful_packet_transmission/persisentCSMACD.total_transmission)
+        # print(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
