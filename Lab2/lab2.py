@@ -2,7 +2,6 @@ import datetime
 import random
 import math
 import matplotlib.pyplot as plt
-import numpy
 
 from collections import deque
 
@@ -23,12 +22,17 @@ def compute_transmission_delay(L, R):
 def compute_propagation_delay(D, S):
     return D/S
 
-def plot_graphs(Ns, Es):
-    plt.figure(1)
-    plt.plot(Ns, Es)
-    plt.title("Efficiency vs. Nodes")
-    plt.ylabel('Efficiency of system (successful packets/transmitted packets)')
-    plt.xlabel('Number of nodes')
+def plot_graphs(Ns, all_efficiencies):
+    plt.figure(1, figsize=(19.20,10.80))
+    As = [7, 10, 20]
+    i=0
+    for efficiencies in all_efficiencies:
+      plt.plot(Ns, efficiencies, label="Arrival rate = {}".format(As[i]))
+      plt.title("Efficiency vs. Nodes")
+      plt.legend(loc="upper right")
+      plt.ylabel('Efficiency of system (successful packets/transmitted packets)')
+      plt.xlabel('Number of nodes')
+      i += 1
     plt.show()
 
 class Node:
@@ -37,6 +41,7 @@ class Node:
         self.backoff_collision_counter = 0
         self.backoff_busy_counter = 0
         self.max_backoff = 10
+        self.override_timestamp = float('-inf')
         self.A = A # average packet arrival rate
         self.T = T # simulation time
         self.completed = False
@@ -85,9 +90,12 @@ class Lan:
             min_node_index = 0
             min_timestamp = float('inf')
             for i, node in enumerate(self.nodes):
-                if node.queue and node.queue[0] < min_timestamp:
-                    min_timestamp = node.queue[0]
-                    min_node_index = i
+                if node.queue:
+                    if node.queue[0] < node.override_timestamp:
+                        node.queue[0] = node.override_timestamp
+                    if node.queue[0] < min_timestamp:
+                        min_timestamp = node.queue[0]
+                        min_node_index = i
 
             # process event at node index
             self.process_sender_node(min_node_index, min_timestamp)
@@ -95,14 +103,6 @@ class Lan:
     def calculate_exp_backoff_time(self, backoff_counter):
         Tp = 512 / self.R
         return random.randint(0, (2**backoff_counter) - 1) * Tp
-
-    def bubble_new_frame_time(self, node, new_frame_time):
-        for i in range(len(node.queue)):
-            current_frame_time = node.queue[i]
-            if current_frame_time < new_frame_time:
-                node.queue[i] = new_frame_time
-            else:
-                break
 
     def process_sender_node(self, sender_index, sender_frame_time):
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
@@ -125,14 +125,14 @@ class Lan:
                 self.dropped_packets += 1
             else:
                 wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
-                self.bubble_new_frame_time(sender_node, wait_time)
+                sender_node.override_timestamp = wait_time
         else:
             sender_node.queue.popleft()
             if self.CSMACD_type == CSMACDType.NON_PERSISTENT:
                 sender_node.backoff_busy_counter = 0
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
-            self.bubble_new_frame_time(sender_node, transmission_time)
+            sender_node.override_timestamp = transmission_time
             
         if not sender_node.queue:
             self.completed_nodes += 1
@@ -166,7 +166,7 @@ class Lan:
                         self.completed_nodes += 1
                 else:
                     wait_time = first_bit_received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node.backoff_collision_counter)
-                    self.bubble_new_frame_time(curr_node, wait_time)
+                    curr_node.override_timestamp = wait_time
                     
                 collision_status["collision_detected"] = True
                 collision_status["max_distance"] = max(max_distance, distance_to_sender)
@@ -175,10 +175,10 @@ class Lan:
             if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + compute_transmission_delay(self.L, self.R):
                 transmission_time = first_bit_received_time + compute_transmission_delay(self.L, self.R)
                 if self.CSMACD_type == CSMACDType.PERSISTENT:
-                    self.bubble_new_frame_time(curr_node, transmission_time)
+                    curr_node.override_timestamp = transmission_time
                 else:
                     curr_node.backoff_busy_counter += 1
-                    wait_time = head_frame_time+self.calculate_exp_backoff_time(curr_node.backoff_busy_counter)
+                    wait_time = head_frame_time + self.calculate_exp_backoff_time(curr_node.backoff_busy_counter)
                     # backoff until new wait time is greater than transmission time of last bit of receiving frame
                     while wait_time < transmission_time:
                         curr_node.backoff_busy_counter += 1
@@ -193,7 +193,7 @@ class Lan:
                         if not curr_node.queue:
                             self.completed_nodes += 1
                     else:
-                        self.bubble_new_frame_time(curr_node, head_frame_time+self.calculate_exp_backoff_time(curr_node.backoff_busy_counter))          
+                        curr_node.override_timestamp = wait_time
             curr_index = self.get_next_index(curr_index, direction)
 
     def get_next_index(self, curr_index, direction):
@@ -210,16 +210,14 @@ class CSMACDType:
 if __name__ == "__main__":
     Ns = [20, 40, 60, 80, 100]
     As = [7, 10, 20]
-    efficiency = []
-    for N in Ns:
-        persisentCSMACD = Lan(N, 5, 1000, CSMACDType.PERSISTENT)
-        persisentCSMACD.create_nodes()
-        persisentCSMACD.run_simulation()
-        efficiency.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
-    plot_graphs(Ns, efficiency)
-        # print(persisentCSMACD.successful_packet_transmissions)
-        # print(persisentCSMACD.total_transmissions)
-        # print(persisentCSMACD.completed_nodes)
-        # print(persisentCSMACD.dropped_packets)
-        # print(">>>>>>")
-        # print(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
+    all_efficiencies = []
+    for A in As:
+        efficiencies = []
+        for N in Ns:
+            persisentCSMACD = Lan(N, 5, 1000, CSMACDType.PERSISTENT)
+            persisentCSMACD.create_nodes()
+            persisentCSMACD.run_simulation()
+            efficiencies.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
+        all_efficiencies.append(efficiencies)
+
+    plot_graphs(Ns, all_efficiencies)
