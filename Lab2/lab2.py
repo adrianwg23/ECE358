@@ -147,8 +147,8 @@ class Lan:
                 sender_node.override_timestamp = wait_time
         else:
             sender_node.queue.popleft()
-            if self.CSMACD_type == CSMACDType.NON_PERSISTENT:
-                sender_node.backoff_busy_counter = 0
+            sender_node.backoff_busy_counter = 0
+            sender_node.backoff_collision_counter = 0
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
             sender_node.override_timestamp = transmission_time
@@ -179,6 +179,7 @@ class Lan:
                 if curr_node.backoff_collision_counter > curr_node.max_backoff:
                     # drop packet due to collision
                     curr_node.queue.popleft()
+                    curr_node.backoff_busy_counter = 0
                     curr_node.backoff_collision_counter = 0
                     self.dropped_packets += 1
                     if not curr_node.queue:
@@ -208,6 +209,7 @@ class Lan:
                         # drop packet due to busy backoff counter excteed
                         curr_node.queue.popleft()
                         curr_node.backoff_busy_counter = 0
+                        curr_node.backoff_collision_counter = 0
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
@@ -227,7 +229,7 @@ class CSMACDType:
 
 
 if __name__ == "__main__":
-    T = 1000
+    T = 500
     Ns = [20, 40, 60, 80, 100]
     As = [7, 10, 20]
     all_efficiencies = []
