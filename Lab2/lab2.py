@@ -123,6 +123,10 @@ class Lan:
         Tp = 512 / self.R
         return random.randint(0, (2**backoff_counter) - 1) * Tp
 
+    def reset_backoff_counters(self, node):
+        node.backoff_collision_counter = 0
+        node.backoff_busy_counter = 0
+
     def process_sender_node(self, sender_index, sender_frame_time):
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
         self.total_transmissions += 1
@@ -140,15 +144,14 @@ class Lan:
             if sender_node.backoff_collision_counter > sender_node.max_backoff:
                 # drop packet due to collision
                 sender_node.queue.popleft()
-                sender_node.backoff_collision_counter = 0
+                self.reset_backoff_counters(sender_node)
                 self.dropped_packets += 1
             else:
                 wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
                 sender_node.override_timestamp = wait_time
         else:
             sender_node.queue.popleft()
-            sender_node.backoff_busy_counter = 0
-            sender_node.backoff_collision_counter = 0
+            self.reset_backoff_counters(sender_node)
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
             sender_node.override_timestamp = transmission_time
@@ -179,8 +182,7 @@ class Lan:
                 if curr_node.backoff_collision_counter > curr_node.max_backoff:
                     # drop packet due to collision
                     curr_node.queue.popleft()
-                    curr_node.backoff_busy_counter = 0
-                    curr_node.backoff_collision_counter = 0
+                    self.reset_backoff_counters(curr_node)
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
@@ -208,8 +210,7 @@ class Lan:
                     if curr_node.backoff_busy_counter > curr_node.max_backoff:
                         # drop packet due to busy backoff counter excteed
                         curr_node.queue.popleft()
-                        curr_node.backoff_busy_counter = 0
-                        curr_node.backoff_collision_counter = 0
+                        self.reset_backoff_counters(curr_node)
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
