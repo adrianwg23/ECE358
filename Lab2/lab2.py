@@ -208,7 +208,7 @@ class Lan:
                         if curr_node.backoff_busy_counter > curr_node.max_backoff:
                             break
                     if curr_node.backoff_busy_counter > curr_node.max_backoff:
-                        # drop packet due to busy backoff counter excteed
+                        # drop packet due to busy backoff counter exceeded
                         curr_node.queue.popleft()
                         self.reset_backoff_counters(curr_node)
                         self.dropped_packets_due_to_busy_medium += 1
