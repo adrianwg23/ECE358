@@ -67,7 +67,7 @@ class Lan:
 
         # constants
         self.R = 10**6 # speed of the LAN
-        self.L = 1500 # packet length
+        self.L = 1500 # packet length in bits
         self.D = 10 # distance between adjacent nodes on bus
         self.S = (2/3) * (3 * (10**8)) # propagation speed
 
@@ -208,16 +208,21 @@ class CSMACDType:
 
 
 if __name__ == "__main__":
+    T = 1000
     Ns = [20, 40, 60, 80, 100]
     As = [7, 10, 20]
     all_efficiencies = []
+    all_throughputs = []
     for A in As:
         efficiencies = []
+        throughputs = []
         for N in Ns:
-            persisentCSMACD = Lan(N, 5, 1000, CSMACDType.PERSISTENT)
+            persisentCSMACD = Lan(N, 5, T, CSMACDType.PERSISTENT)
             persisentCSMACD.create_nodes()
             persisentCSMACD.run_simulation()
             efficiencies.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
+            throughputs.append(persisentCSMACD.successful_packet_transmissions*persisentCSMACD.L/T)
         all_efficiencies.append(efficiencies)
-
+        all_throughputs.append(throughputs)
     plot_graphs(Ns, all_efficiencies)
+    plot_graphs(Ns, all_throughputs)
