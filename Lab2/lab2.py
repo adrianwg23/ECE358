@@ -184,7 +184,7 @@ class Lan:
                     if not curr_node.queue:
                         self.completed_nodes += 1
                 else:
-                    wait_time = first_bit_received_time + compute_transmission_delay(self.L, self.R) + self.calculate_exp_backoff_time(curr_node.backoff_collision_counter)
+                    wait_time = first_bit_received_time + self.calculate_exp_backoff_time(curr_node.backoff_collision_counter)
                     curr_node.override_timestamp = wait_time
                     
                 collision_status["collision_detected"] = True
