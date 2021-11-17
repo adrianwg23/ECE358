@@ -40,7 +40,7 @@ def plot_throughput_graphs(Ns, all_throughputs):
     As = [7, 10, 20]
     i=0
     for throughputs in all_throughputs:
-        throughputs = throughputs / (10**6)
+        throughputs = [x / (10**6) for x in throughputs]
         plt.plot(Ns, throughputs, label="Arrival rate = {}".format(As[i]))
         plt.title("Throughput vs. Nodes")
         plt.legend(loc="upper right")
