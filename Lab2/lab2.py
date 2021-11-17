@@ -22,18 +22,32 @@ def compute_transmission_delay(L, R):
 def compute_propagation_delay(D, S):
     return D/S
 
-def plot_graphs(Ns, all_efficiencies):
+def plot_efficiency_graphs(Ns, all_efficiencies):
     plt.figure(1, figsize=(19.20,10.80))
     As = [7, 10, 20]
     i=0
     for efficiencies in all_efficiencies:
-      plt.plot(Ns, efficiencies, label="Arrival rate = {}".format(As[i]))
-      plt.title("Efficiency vs. Nodes")
-      plt.legend(loc="upper right")
-      plt.ylabel('Efficiency of system (successful packets/transmitted packets)')
-      plt.xlabel('Number of nodes')
-      i += 1
+        plt.plot(Ns, efficiencies, label="Arrival rate = {}".format(As[i]))
+        plt.title("Efficiency vs. Nodes")
+        plt.legend(loc="upper right")
+        plt.ylabel('Efficiency of system (successful packets/transmitted packets)')
+        plt.xlabel('Number of nodes')
+        i += 1
     plt.show()
+
+def plot_throughput_graphs(Ns, all_throughputs):
+    plt.figure(2, figsize=(19.20,10.80))
+    As = [7, 10, 20]
+    i=0
+    for throughputs in all_throughputs:
+        throughputs = throughputs / (10**6)
+        plt.plot(Ns, throughputs, label="Arrival rate = {}".format(As[i]))
+        plt.title("Throughput vs. Nodes")
+        plt.legend(loc="upper right")
+        plt.ylabel('Throughput of system (Mbits/second)')
+        plt.xlabel('Number of nodes')
+        i += 1
+    plt.show()  
 
 class Node:
     def __init__(self, A, T):
@@ -93,12 +107,17 @@ class Lan:
                 if node.queue:
                     if node.queue[0] < node.override_timestamp:
                         node.queue[0] = node.override_timestamp
-                    if node.queue[0] < min_timestamp:
-                        min_timestamp = node.queue[0]
-                        min_node_index = i
+                    if node.queue[0] >= self.T:
+                        self.completed_nodes += 1
+                        node.queue.clear()
+                    else:
+                        if node.queue[0] < min_timestamp:
+                            min_timestamp = node.queue[0]
+                            min_node_index = i
 
-            # process event at node index
-            self.process_sender_node(min_node_index, min_timestamp)
+            if self.completed_nodes < self.N:
+                # process event at node index
+                self.process_sender_node(min_node_index, min_timestamp)
     
     def calculate_exp_backoff_time(self, backoff_counter):
         Tp = 512 / self.R
@@ -217,12 +236,12 @@ if __name__ == "__main__":
         efficiencies = []
         throughputs = []
         for N in Ns:
-            persisentCSMACD = Lan(N, 5, T, CSMACDType.PERSISTENT)
+            persisentCSMACD = Lan(N, A, T, CSMACDType.NON_PERSISTENT)
             persisentCSMACD.create_nodes()
             persisentCSMACD.run_simulation()
             efficiencies.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
             throughputs.append(persisentCSMACD.successful_packet_transmissions*persisentCSMACD.L/T)
         all_efficiencies.append(efficiencies)
         all_throughputs.append(throughputs)
-    plot_graphs(Ns, all_efficiencies)
-    plot_graphs(Ns, all_throughputs)
+    plot_efficiency_graphs(Ns, all_efficiencies)
+    plot_throughput_graphs(Ns, all_throughputs)
