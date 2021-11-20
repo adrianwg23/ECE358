@@ -75,6 +75,12 @@ class Node:
         self.backoff_collision_counter = 0
         self.backoff_busy_counter = 0
 
+    def remove_head(self, transmission_delay):
+        head_frame_time = self.queue[0]
+        self.queue.popleft()
+        self.reset_backoff_counters()
+        self.override_timestamp = head_frame_time + transmission_delay
+
 
 class Lan:
     def __init__(self, N, A, T, CSMACD_type):
@@ -145,19 +151,14 @@ class Lan:
             sender_node.backoff_collision_counter += 1
             if sender_node.backoff_collision_counter > sender_node.max_backoff:
                 # drop packet due to collision
-                sender_node.queue.popleft()
-                sender_node.reset_backoff_counters()
-                sender_node.override_timestamp = sender_frame_time + self.transmission_delay
+                sender_node.remove_head(self.transmission_delay)
                 self.dropped_packets += 1
             else:
                 wait_time = sender_frame_time + self.propagation_delay * collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
                 sender_node.override_timestamp = wait_time
         else:
-            sender_node.queue.popleft()
-            sender_node.reset_backoff_counters()
+            sender_node.remove_head(self.transmission_delay)
             self.successful_packet_transmissions += 1
-            transmission_time = sender_frame_time + self.transmission_delay
-            sender_node.override_timestamp = transmission_time
             
         if not sender_node.queue:
             self.completed_nodes += 1
@@ -185,9 +186,7 @@ class Lan:
 
                 if curr_node.backoff_collision_counter > curr_node.max_backoff:
                     # drop packet due to collision
-                    curr_node.queue.popleft()
-                    curr_node.reset_backoff_counters()
-                    curr_node.override_timestamp = head_frame_time + self.transmission_delay
+                    curr_node.remove_head(self.transmission_delay)
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
@@ -214,9 +213,7 @@ class Lan:
                             break
                     if curr_node.backoff_busy_counter > curr_node.max_backoff:
                         # drop packet due to busy backoff counter exceeded
-                        curr_node.queue.popleft()
-                        curr_node.reset_backoff_counters()
-                        curr_node.override_timestamp = head_frame_time + self.transmission_delay
+                        curr_node.remove_head(self.transmission_delay)
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
