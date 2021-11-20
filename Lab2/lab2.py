@@ -88,6 +88,8 @@ class Lan:
         self.L = 1500 # packet length in bits
         self.D = 10 # distance between adjacent nodes on bus
         self.S = (2/3) * (3 * (10**8)) # propagation speed
+        self.transmission_delay = compute_transmission_delay(self.L, self.R)
+        self.propagation_delay = compute_propagation_delay(self.D, self.S)
 
         self.dropped_packets = 0
         self.dropped_packets_due_to_busy_medium = 0
@@ -145,16 +147,16 @@ class Lan:
                 # drop packet due to collision
                 sender_node.queue.popleft()
                 sender_node.reset_backoff_counters()
-                sender_node.override_timestamp = sender_frame_time + compute_transmission_delay(self.L, self.R)
+                sender_node.override_timestamp = sender_frame_time + self.transmission_delay
                 self.dropped_packets += 1
             else:
-                wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
+                wait_time = sender_frame_time + self.propagation_delay * collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
                 sender_node.override_timestamp = wait_time
         else:
             sender_node.queue.popleft()
             sender_node.reset_backoff_counters()
             self.successful_packet_transmissions += 1
-            transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
+            transmission_time = sender_frame_time + self.transmission_delay
             sender_node.override_timestamp = transmission_time
             
         if not sender_node.queue:
@@ -174,7 +176,7 @@ class Lan:
             
             head_frame_time = curr_node.queue[0]
             distance_to_sender = abs(curr_index - sender_index)
-            first_bit_received_time = sender_frame_time + (compute_propagation_delay(self.D, self.S) * (distance_to_sender))
+            first_bit_received_time = sender_frame_time + (self.propagation_delay * (distance_to_sender))
 
             # collision occurs
             if head_frame_time <= first_bit_received_time:
@@ -185,7 +187,7 @@ class Lan:
                     # drop packet due to collision
                     curr_node.queue.popleft()
                     curr_node.reset_backoff_counters()
-                    curr_node.override_timestamp = head_frame_time + compute_transmission_delay(self.L, self.R)
+                    curr_node.override_timestamp = head_frame_time + self.transmission_delay
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
@@ -197,8 +199,8 @@ class Lan:
                 collision_status["max_distance"] = max(max_distance, distance_to_sender)
 
             # no collision but node senses medium as busy
-            if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + compute_transmission_delay(self.L, self.R):
-                transmission_time = first_bit_received_time + compute_transmission_delay(self.L, self.R)
+            if head_frame_time > first_bit_received_time and head_frame_time < first_bit_received_time + self.transmission_delay:
+                transmission_time = first_bit_received_time + self.transmission_delay
                 if self.CSMACD_type == CSMACDType.PERSISTENT:
                     curr_node.override_timestamp = transmission_time
                 else:
@@ -214,7 +216,7 @@ class Lan:
                         # drop packet due to busy backoff counter exceeded
                         curr_node.queue.popleft()
                         curr_node.reset_backoff_counters()
-                        curr_node.override_timestamp = head_frame_time + compute_transmission_delay(self.L, self.R)
+                        curr_node.override_timestamp = head_frame_time + self.transmission_delay
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
