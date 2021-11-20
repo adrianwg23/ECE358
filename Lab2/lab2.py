@@ -145,6 +145,7 @@ class Lan:
                 # drop packet due to collision
                 sender_node.queue.popleft()
                 sender_node.reset_backoff_counters()
+                sender_node.override_timestamp = sender_frame_time + compute_transmission_delay(self.L, self.R)
                 self.dropped_packets += 1
             else:
                 wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
@@ -184,6 +185,7 @@ class Lan:
                     # drop packet due to collision
                     curr_node.queue.popleft()
                     curr_node.reset_backoff_counters()
+                    curr_node.override_timestamp = head_frame_time + compute_transmission_delay(self.L, self.R)
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
@@ -212,6 +214,7 @@ class Lan:
                         # drop packet due to busy backoff counter exceeded
                         curr_node.queue.popleft()
                         curr_node.reset_backoff_counters()
+                        curr_node.override_timestamp = head_frame_time + compute_transmission_delay(self.L, self.R)
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
