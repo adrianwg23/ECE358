@@ -71,6 +71,10 @@ class Node:
             self.queue.append(arrival_time)
             current_time = arrival_time
 
+    def reset_backoff_counters(self):
+        self.backoff_collision_counter = 0
+        self.backoff_busy_counter = 0
+
 
 class Lan:
     def __init__(self, N, A, T, CSMACD_type):
@@ -123,19 +127,15 @@ class Lan:
         Tp = 512 / self.R
         return random.randint(0, (2**backoff_counter) - 1) * Tp
 
-    def reset_backoff_counters(self, node):
-        node.backoff_collision_counter = 0
-        node.backoff_busy_counter = 0
-
     def process_sender_node(self, sender_index, sender_frame_time):
         collision_status = { "collision_detected": False, "max_distance": float('-inf') }
         self.total_transmissions += 1
 
         # send packet to nodes right of the sender
-        self.process_neighbour_node(sender_index+1, sender_frame_time, collision_status, direction="right")
+        self.process_neighbour_node(sender_index, sender_frame_time, collision_status, direction="right")
 
         # send packet to nodes left of the sender
-        self.process_neighbour_node(sender_index-1, sender_frame_time, collision_status, direction="left")
+        self.process_neighbour_node(sender_index, sender_frame_time, collision_status, direction="left")
 
         sender_node = self.nodes[sender_index]
 
@@ -144,14 +144,14 @@ class Lan:
             if sender_node.backoff_collision_counter > sender_node.max_backoff:
                 # drop packet due to collision
                 sender_node.queue.popleft()
-                self.reset_backoff_counters(sender_node)
+                sender_node.reset_backoff_counters()
                 self.dropped_packets += 1
             else:
                 wait_time = sender_frame_time + compute_propagation_delay(self.D, self.S)*collision_status['max_distance'] + self.calculate_exp_backoff_time(sender_node.backoff_collision_counter)
                 sender_node.override_timestamp = wait_time
         else:
             sender_node.queue.popleft()
-            self.reset_backoff_counters(sender_node)
+            sender_node.reset_backoff_counters()
             self.successful_packet_transmissions += 1
             transmission_time = sender_frame_time + compute_transmission_delay(self.L, self.R)
             sender_node.override_timestamp = transmission_time
@@ -161,6 +161,7 @@ class Lan:
 
     def process_neighbour_node(self, sender_index, sender_frame_time, collision_status, direction):
         curr_index = sender_index
+        curr_index = self.get_next_index(curr_index, direction)
         max_distance = collision_status["max_distance"]
 
         while curr_index >= 0 and curr_index < self.N:
@@ -182,7 +183,7 @@ class Lan:
                 if curr_node.backoff_collision_counter > curr_node.max_backoff:
                     # drop packet due to collision
                     curr_node.queue.popleft()
-                    self.reset_backoff_counters(curr_node)
+                    curr_node.reset_backoff_counters()
                     self.dropped_packets += 1
                     if not curr_node.queue:
                         self.completed_nodes += 1
@@ -210,12 +211,13 @@ class Lan:
                     if curr_node.backoff_busy_counter > curr_node.max_backoff:
                         # drop packet due to busy backoff counter exceeded
                         curr_node.queue.popleft()
-                        self.reset_backoff_counters(curr_node)
+                        curr_node.reset_backoff_counters()
                         self.dropped_packets_due_to_busy_medium += 1
                         if not curr_node.queue:
                             self.completed_nodes += 1
                     else:
                         curr_node.override_timestamp = wait_time
+
             curr_index = self.get_next_index(curr_index, direction)
 
     def get_next_index(self, curr_index, direction):
