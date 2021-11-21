@@ -274,7 +274,7 @@ def run_question_2(T, Ns, As):
     print(all_throughputs_np)
 
 if __name__ == "__main__":
-    T = 100
+    T = 1000
     Ns = [20, 40, 60, 80, 100]
     As = [7]
     run_question_1(T, Ns, As)
