@@ -234,21 +234,43 @@ class CSMACDType:
 
 
 if __name__ == "__main__":
-    T = 500
+    # Question 1
+    T = 100
     Ns = [20, 40, 60, 80, 100]
-    As = [7, 10, 20]
+    As = [7]
     all_efficiencies = []
     all_throughputs = []
     for A in As:
         efficiencies = []
         throughputs = []
         for N in Ns:
-            persisentCSMACD = Lan(N, A, T, CSMACDType.NON_PERSISTENT)
+            persisentCSMACD = Lan(N, A, T, CSMACDType.PERSISTENT)
             persisentCSMACD.create_nodes()
             persisentCSMACD.run_simulation()
             efficiencies.append(persisentCSMACD.successful_packet_transmissions/persisentCSMACD.total_transmissions)
-            throughputs.append(persisentCSMACD.successful_packet_transmissions*persisentCSMACD.L/T)
+            throughputs.append(persisentCSMACD.successful_packet_transmissions*persisentCSMACD.L/T)        
         all_efficiencies.append(efficiencies)
         all_throughputs.append(throughputs)
+    print(all_efficiencies)
+    print(all_throughputs)
     plot_efficiency_graphs(Ns, all_efficiencies)
     plot_throughput_graphs(Ns, all_throughputs)
+
+    # Question 2
+    all_efficiencies_np = []
+    all_throughputs_np = []
+    for A in As:
+        efficiencies = []
+        throughputs = []
+        for N in Ns:
+            nonpersisentCSMACD = Lan(N, A, T, CSMACDType.NON_PERSISTENT)
+            nonpersisentCSMACD.create_nodes()
+            nonpersisentCSMACD.run_simulation()
+            efficiencies.append(nonpersisentCSMACD.successful_packet_transmissions/(nonpersisentCSMACD.total_transmissions+nonpersisentCSMACD.dropped_packets_due_to_busy_medium))
+            throughputs.append(nonpersisentCSMACD.successful_packet_transmissions*nonpersisentCSMACD.L/T)      
+        all_efficiencies_np.append(efficiencies)
+        all_throughputs_np.append(throughputs)
+    plot_efficiency_graphs(Ns, all_efficiencies_np)
+    plot_throughput_graphs(Ns, all_throughputs_np)
+    print(all_efficiencies_np)
+    print(all_throughputs_np)
