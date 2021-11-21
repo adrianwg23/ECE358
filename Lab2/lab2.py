@@ -233,11 +233,8 @@ class CSMACDType:
     PERSISTENT, NON_PERSISTENT = range(2)
 
 
-if __name__ == "__main__":
+def run_question_1(T, Ns, As):
     # Question 1
-    T = 100
-    Ns = [20, 40, 60, 80, 100]
-    As = [7]
     all_efficiencies = []
     all_throughputs = []
     for A in As:
@@ -256,6 +253,7 @@ if __name__ == "__main__":
     plot_efficiency_graphs(Ns, all_efficiencies)
     plot_throughput_graphs(Ns, all_throughputs)
 
+def run_question_2(T, Ns, As):
     # Question 2
     all_efficiencies_np = []
     all_throughputs_np = []
@@ -274,3 +272,10 @@ if __name__ == "__main__":
     plot_throughput_graphs(Ns, all_throughputs_np)
     print(all_efficiencies_np)
     print(all_throughputs_np)
+
+if __name__ == "__main__":
+    T = 100
+    Ns = [20, 40, 60, 80, 100]
+    As = [7]
+    run_question_1(T, Ns, As)
+    run_question_2(T, Ns, As)
